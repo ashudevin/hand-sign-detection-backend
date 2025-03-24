@@ -7,6 +7,7 @@ import numpy as np
 import pickle
 import io
 import logging
+import os
 
 app = FastAPI()
 
@@ -33,20 +34,36 @@ hands = mp_hands.Hands(static_image_mode=True, min_detection_confidence=0.3)
 labels_dict = {i: chr(65 + i) for i in range(26)}  # Map numbers to A-Z
 
 # Global capture object
-cap = cv2.VideoCapture(0)
+is_production = os.environ.get('RENDER', '') == 'true'
+
+if is_production:
+    # In production, we won't use a real webcam
+    # Just create a dummy capture or use a static image
+    dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    cap = None
+else:
+    # In development, use the webcam
+    cap = cv2.VideoCapture(0)
 
 @app.on_event("shutdown")
 def shutdown_event():
     logging.info("Releasing video capture resources.")
-    cap.release()
+    if cap is not None:
+        cap.release()
 
 def gen_frames():
     """Generate video frames for streaming."""
     while True:
-        success, frame = cap.read()
-        if not success:
-            break
+        if cap is not None:
+            success, frame = cap.read()
+            if not success:
+                break
         else:
+            # In production, use a dummy frame
+            frame = dummy_frame.copy()
+            success = True
+            
+        if success:
             # Encode frame as JPEG
             _, buffer = cv2.imencode('.jpg', frame)
             frame = buffer.tobytes()
@@ -63,10 +80,15 @@ def video_feed():
 @app.get("/detect")
 def detect_hand_sign():
     """Detect hand signs from the webcam."""
-    ret, frame = cap.read()
-    if not ret:
-        logging.error("Failed to capture frame.")
-        return JSONResponse(content={"error": "Failed to capture frame."}, status_code=500)
+    if cap is not None:
+        ret, frame = cap.read()
+        if not ret:
+            logging.error("Failed to capture frame.")
+            return JSONResponse(content={"error": "Failed to capture frame."}, status_code=500)
+    else:
+        # In production, use a dummy frame or test image
+        frame = dummy_frame.copy()
+        ret = True
 
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(frame_rgb)
