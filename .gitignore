@@ -28,6 +28,8 @@ ENV/
 env.bak/
 venv.bak/
 
+Sign-detection-frontend/
+
 # Node.js
 node_modules/
 npm-debug.log*
