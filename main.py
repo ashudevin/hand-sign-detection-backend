@@ -84,6 +84,11 @@ def gen_frames():
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 
+@app.get("/")
+def read_root():
+    return {"message": "Hello, World!"}
+
+
 @app.get("/video_feed")
 def video_feed():
     """Endpoint to stream video feed."""
